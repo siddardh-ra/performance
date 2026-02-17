@@ -1,5 +1,10 @@
 function _log() {
-    echo "$( date -Ins --utc ) $1 $2" >&1
+    # Cross-platform ISO 8601 timestamp (macOS compatible)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "$( date -u +"%Y-%m-%dT%H:%M:%S.000000Z" ) $1 $2" >&1
+    else
+        echo "$( date -Ins --utc ) $1 $2" >&1
+    fi
 }
 
 function debug() {
@@ -67,10 +72,10 @@ function wait_for_entity_by_selector() {
     l="$4"
     expected="${5:-}"
 
-    before=$(date --utc +%s)
+    before=$(date -u +%s)
 
     while ! entity_by_selector_exists "$ns" "$entity" "$l" "$expected"; do
-        now=$(date --utc +%s)
+        now=$(date -u +%s)
         if [[ $(( now - before )) -ge "$timeout" ]]; then
             fatal "Required $entity did not appeared before timeout"
         fi
@@ -108,6 +113,161 @@ function capture_results_db_query(){
         # Create a new JSON array and add the new entry
         echo "{}" | jq ".results.ResultsDB.queries = [$new_entry]" > "$output_file"
     fi
+}
+
+function capture_results_api_metrics(){
+    local output_file=$1
+    local token=$2
+
+    info "Collecting Results API metrics (Console Dashboard data)"
+
+    # Try to find a Results API pod to exec into, or use route
+    local results_api_pod
+    results_api_pod=$(kubectl -n openshift-pipelines get pod -l app.kubernetes.io/name=tekton-results-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+    
+    local api_base_url=""
+    local use_pod_exec=false
+
+    if [ -n "$results_api_pod" ]; then
+        # Use pod exec to query the API (most reliable)
+        debug "Querying Results API via pod exec: $results_api_pod"
+        api_base_url="https://tekton-results-api-service.openshift-pipelines.svc.cluster.local:8080"
+        use_pod_exec=true
+    else
+        # Fallback: try to use route if available
+        local results_api_route
+        results_api_route=$(kubectl -n openshift-pipelines get route tekton-results-api -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+        
+        if [ -n "$results_api_route" ]; then
+            debug "Querying Results API via route: $results_api_route"
+            api_base_url="https://${results_api_route}"
+            use_pod_exec=false
+        else
+            warning "Results API pod or route not found, skipping API metrics collection"
+            return
+        fi
+    fi
+
+    # Collect all records with pagination
+    local all_records="[]"
+    local page_token=""
+    local page_size=1000  # Request large page size
+    local total_pages=0
+    local api_error=""
+
+    info "Fetching all records from Results API (with pagination)..."
+    
+    while true; do
+        local api_response=""
+        local url="${api_base_url}/apis/results.tekton.dev/v1alpha2/parents/-/results/-/records?page_size=${page_size}"
+        
+        if [ -n "$page_token" ]; then
+            url="${url}&page_token=${page_token}"
+        fi
+
+        if [ "$use_pod_exec" == "true" ]; then
+            api_response=$(oc -n openshift-pipelines exec "$results_api_pod" -- curl -s -k \
+                -H "Authorization: Bearer $token" \
+                "$url" 2>&1) || api_error="$api_response"
+        else
+            api_response=$(curl -s -k -H "Authorization: Bearer $token" "$url" 2>&1) || api_error="$api_response"
+        fi
+
+        if [ -n "$api_error" ] || [ -z "$api_response" ]; then
+            warning "Failed to query Results API: ${api_error:-empty response}"
+            break
+        fi
+
+        # Check if response is valid JSON
+        if ! echo "$api_response" | jq empty 2>/dev/null; then
+            warning "Results API returned invalid JSON response"
+            debug "Response: ${api_response:0:200}"
+            break
+        fi
+
+        # Extract records from this page
+        local page_records
+        page_records=$(echo "$api_response" | jq -r '.records // []' 2>/dev/null || echo "[]")
+        
+        # Merge with all_records
+        all_records=$(echo "$all_records" | jq --argjson page "$page_records" '. + $page' 2>/dev/null || echo "$all_records")
+
+        # Check for next page token
+        page_token=$(echo "$api_response" | jq -r '.next_page_token // ""' 2>/dev/null || echo "")
+        total_pages=$((total_pages + 1))
+        
+        local page_count
+        page_count=$(echo "$page_records" | jq 'length' 2>/dev/null || echo "0")
+        debug "Fetched page $total_pages: $page_count records"
+
+        # If no next page token, we're done
+        if [ -z "$page_token" ] || [ "$page_token" == "null" ] || [ "$page_token" == "" ]; then
+            break
+        fi
+    done
+
+    # Parse all records and extract counts
+    local pipelinerun_count taskrun_count total_records
+    
+    # Count PipelineRuns (try multiple type patterns)
+    pipelinerun_count=$(echo "$all_records" | jq -r '[.[]? | select(.data.type? | (endswith(".PipelineRun") or contains("PipelineRun") or (type == "string" and (. | test("PipelineRun"; "i")))))] | length' 2>/dev/null || echo "0")
+    
+    # If that didn't work, try a simpler approach
+    if [ "$pipelinerun_count" == "0" ] || [ -z "$pipelinerun_count" ]; then
+        pipelinerun_count=$(echo "$all_records" | jq -r '[.[]? | select(.data.type? | endswith("PipelineRun"))] | length' 2>/dev/null || echo "0")
+    fi
+    
+    # Count TaskRuns
+    taskrun_count=$(echo "$all_records" | jq -r '[.[]? | select(.data.type? | endswith(".TaskRun"))] | length' 2>/dev/null || echo "0")
+    
+    # Total records
+    total_records=$(echo "$all_records" | jq -r 'length' 2>/dev/null || echo "0")
+    
+    # Check if count seems low (less than 50 records when we might expect more)
+    # This is a heuristic - user should verify with DB query
+    if [ "$total_records" -lt 50 ] && [ -n "${TEST_TOTAL:-}" ] && [ "${TEST_TOTAL}" -gt 100 ]; then
+        warning "Results API returned only $total_records records, but TEST_TOTAL=${TEST_TOTAL}"
+        warning "This might indicate:"
+        warning "  1. Pagination issue (check if total_pages > 1)"
+        warning "  2. PipelineRuns not yet synced by Results watcher"
+        warning "  3. PipelineRuns were pruned before being captured"
+        warning "  4. Results API filtering (incomplete runs, etc.)"
+        warning "Verify with: ./tools/query-results-db.sh \"SELECT count(*) FROM records WHERE type LIKE '%PipelineRun%';\""
+    fi
+    
+    info "Fetched $total_pages page(s) from Results API: Total=$total_records, PipelineRuns=$pipelinerun_count, TaskRuns=$taskrun_count"
+
+    # Create JSON structure for Results API metrics
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    
+    local api_metrics
+    api_metrics=$(jq -n \
+        --argjson pipelinerun_count "${pipelinerun_count:-0}" \
+        --argjson taskrun_count "${taskrun_count:-0}" \
+        --argjson total_records "${total_records:-0}" \
+        --argjson total_pages "${total_pages:-1}" \
+        --arg timestamp "$timestamp" \
+        '{
+            total_records: $total_records,
+            total_pages: $total_pages,
+            pipelineruns: {
+                count: $pipelinerun_count
+            },
+            taskruns: {
+                count: $taskrun_count
+            },
+            timestamp: $timestamp
+        }')
+
+    # Merge into output file
+    if [ -f "$output_file" ]; then
+        jq --argjson api_metrics "$api_metrics" '.results.ResultsAPI = $api_metrics' "$output_file" > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
+    else
+        echo "{}" | jq --argjson api_metrics "$api_metrics" '.results.ResultsAPI = $api_metrics' > "$output_file"
+    fi
+
+    info "Results API metrics collected: PipelineRuns=$pipelinerun_count, TaskRuns=$taskrun_count, Total=$total_records"
 }
 
 version_gte() {

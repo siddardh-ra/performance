@@ -53,7 +53,11 @@ if [ -e "$TEST_PIPELINE" ]; then
 fi
 
 info "Benchmark ${TEST_TOTAL} | ${TEST_CONCURRENT} | ${TEST_RUN} | ${TEST_NAMESPACE}"
-before=$(date -Ins --utc)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    before=$(date -u +"%Y-%m-%dT%H:%M:%S.000000Z")
+else
+    before=$(date -Ins --utc)
+fi
 if [ -n "${WAIT_TIME:-}" ]; then
     info "Waiting to establish a baseline performance before creating PRs/TRs"
     sleep $WAIT_TIME
@@ -67,7 +71,11 @@ if [ -e "$TEST_CONCURRENCY_PATH" ]; then
 fi
 
 time ../../tools/benchmark.py --insecure --namespace "${TEST_NAMESPACE}" --total "${TEST_TOTAL}" --concurrent "${TEST_CONCURRENT}" --run "${TEST_RUN}" --stats-file benchmark-stats.csv --output-file benchmark-output.json --verbose $TEST_PARAMS
-after=$(date -Ins --utc)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    after=$(date -u +"%Y-%m-%dT%H:%M:%S.000000Z")
+else
+    after=$(date -Ins --utc)
+fi
 
 # Capture test stats
 time ../../tools/stats.sh "$before" "$after" PipelineRuns

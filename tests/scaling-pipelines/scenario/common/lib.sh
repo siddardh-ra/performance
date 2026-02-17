@@ -1,4 +1,9 @@
 function cosign_generate_key_pair_secret() {
+    # Check if cosign is available
+    if ! command -v cosign &> /dev/null; then
+        fatal "cosign command not found. Please install cosign to generate signing keys. See https://docs.sigstore.dev/cosign/installation/ for installation instructions."
+    fi
+
     if kubectl -n openshift-pipelines get secret/signing-secrets 2>/dev/null; then
         immutable="$( kubectl -n openshift-pipelines get secret/signing-secrets -o json | jq --raw-output ".immutable" )"
         if [[ $immutable == "true" ]]; then

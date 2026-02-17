@@ -26,7 +26,11 @@ for prow_run in "max-concurrency-downstream-nightly-daily" "max-concurrency-down
             json_complete "$out" || continue
             enritch_stuff "$out" '."$schema"' "urn:openshift-pipelines-perfscale-scalingPipelines:0.2"
             horreum_upload "$out" "metadata.env.SUBJOB_BUILD_ID" "__metadata_env_SUBJOB_BUILD_ID" "Openshift-pipelines-team" "PUBLIC" || ((errors_count+=1))
-            resultsdashboard_upload "$out" "Developer" "OpenShift Pipelines" "$( date --utc -Idate )" "@metadata.env.SUBJOB_BUILD_ID" || ((errors_count+=1))
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                resultsdashboard_upload "$out" "Developer" "OpenShift Pipelines" "$( date -u +"%Y-%m-%d" )" "@metadata.env.SUBJOB_BUILD_ID" || ((errors_count+=1))
+            else
+                resultsdashboard_upload "$out" "Developer" "OpenShift Pipelines" "$( date --utc -Idate )" "@metadata.env.SUBJOB_BUILD_ID" || ((errors_count+=1))
+            fi
         done
     done
 done

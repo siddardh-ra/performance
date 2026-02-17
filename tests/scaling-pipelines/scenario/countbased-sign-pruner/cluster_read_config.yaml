@@ -1,0 +1,29 @@
+# Additional Prometheus metrics for countbased-sign-pruner scenario
+# These metrics help identify discrepancy between Prometheus and Results API
+
+# Tekton Pipelines Controller PipelineRun total counter
+- name: measurements.tekton_pipelines_controller_pipelinerun_total
+  monitoring_query: sum(tekton_pipelines_controller_pipelinerun_total)
+  monitoring_step: 15
+
+# Tekton Pipelines Controller PipelineRun total by service (for multi-controller setups)
+- name: measurements.tekton_pipelines_controller_pipelinerun_total_by_service
+  monitoring_query: sum by (service) (tekton_pipelines_controller_pipelinerun_total)
+  monitoring_step: 15
+
+# Increase in PipelineRun counter over the test duration
+# This will be calculated from the start/end times in benchmark-tekton.json
+- name: measurements.tekton_pipelines_controller_pipelinerun_total_increase
+  monitoring_query: sum(increase(tekton_pipelines_controller_pipelinerun_total[1h]))
+  monitoring_step: 15
+
+# Results watcher metrics (if available)
+- name: measurements.results_watcher_records_written_total
+  monitoring_query: sum(tekton_results_watcher_records_written_total)
+  monitoring_step: 15
+
+- name: measurements.results_watcher_errors_total
+  monitoring_query: sum(rate(tekton_results_watcher_errors_total[5m]))
+  monitoring_step: 15
+
+

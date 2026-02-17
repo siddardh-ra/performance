@@ -52,15 +52,34 @@ deactivate
 set -u
 
 # track monitoring start time
-mstart=$(date --utc  --iso-8601=seconds)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    mstart=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+else
+    mstart=$(date --utc --iso-8601=seconds)
+fi
 
 info "Collecting monitoring data..."
 if [ -f "$monitoring_collection_data" ]; then
     set +u
     source venv/bin/activate
     set -u
-    mstart=$(date --utc --date "$(status_data.py --status-data-file "$monitoring_collection_data" --get results.started)" --iso-8601=seconds)
-    mend=$(date --utc --date "$(status_data.py --status-data-file "$monitoring_collection_data" --get results.ended)" --iso-8601=seconds)
+    # Get timestamps from status_data.py
+    started_time=$(status_data.py --status-data-file "$monitoring_collection_data" --get results.started)
+    ended_time=$(status_data.py --status-data-file "$monitoring_collection_data" --get results.ended)
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS date parsing - try multiple formats
+        # Try ISO 8601 with seconds first
+        mstart=$(date -u -j -f "%Y-%m-%dT%H:%M:%S" "${started_time%.*}" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
+                date -u -j -f "%Y-%m-%d %H:%M:%S" "${started_time}" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
+                date -u +"%Y-%m-%dT%H:%M:%SZ")
+        mend=$(date -u -j -f "%Y-%m-%dT%H:%M:%S" "${ended_time%.*}" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
+              date -u -j -f "%Y-%m-%d %H:%M:%S" "${ended_time}" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
+              date -u +"%Y-%m-%dT%H:%M:%SZ")
+    else
+        mstart=$(date --utc --date "$started_time" --iso-8601=seconds)
+        mend=$(date --utc --date "$ended_time" --iso-8601=seconds)
+    fi
     mhost=$(kubectl -n openshift-monitoring get route -l app.kubernetes.io/name=thanos-query -o json | jq --raw-output '.items[0].spec.host')
     status_data.py \
         --status-data-file "$monitoring_collection_data" \
@@ -145,6 +164,8 @@ if [ "$INSTALL_RESULTS" == "true" ]; then
 
     capture_results_db_query "$pg_user" "$pg_pwd" "tekton-results" "select parent, type, count(*) from records group by parent, type order by parent" "$monitoring_collection_data"
 
+    # Collect Results API metrics (Console Dashboard data)
+    capture_results_api_metrics "$monitoring_collection_data" "$(oc whoami -t)"
 
     info "Collecting Results-API log data"
 
@@ -156,10 +177,25 @@ if [ "$INSTALL_RESULTS" == "true" ]; then
     oc -n tekton-pipelines logs --tail=-1 -l app.kubernetes.io/name=tekton-results-api >> "$results_api_logs"
 
     # Parse and store JSON log lines 
+    # Cross-platform JSON extraction (works on both macOS and Linux)
     echo "[" > "$results_api_json"
-    grep -oP '\{.*?\}' "$results_api_logs" \
-        | jq -e -c "$JQ_FIELDS_TO_EXTRACT" 2>"$results_api_error_logs" \
-        | sed '$!s/$/,/' >> "$results_api_json"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS: Extract lines containing JSON objects and let jq filter valid JSON
+        # Use perl to extract JSON-like patterns (perl is usually available on macOS)
+        perl -ne '
+            # Extract JSON objects from the line
+            while (/\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g) {
+                print "$&\n";
+            }
+        ' "$results_api_logs" 2>/dev/null | \
+            jq -e -c "$JQ_FIELDS_TO_EXTRACT" 2>"$results_api_error_logs" 2>/dev/null | \
+            sed '$!s/$/,/' >> "$results_api_json" || true
+    else
+        # Linux: use grep -oP (Perl regex)
+        grep -oP '\{.*?\}' "$results_api_logs" 2>/dev/null | \
+            jq -e -c "$JQ_FIELDS_TO_EXTRACT" 2>"$results_api_error_logs" 2>/dev/null | \
+            sed '$!s/$/,/' >> "$results_api_json" || true
+    fi
     echo "]" >> "$results_api_json"
 else
     info "Skipping Results-API log data"
