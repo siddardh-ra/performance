@@ -16,6 +16,9 @@ creationtimestamp_collection_log=$ARTIFACT_DIR/creationtimestamp-collection.log
 results_api_logs="$ARTIFACT_DIR/results-api-logs.txt"
 results_api_json="$ARTIFACT_DIR/results-api-logs.json"
 results_api_error_logs="$ARTIFACT_DIR/results-api-logs-parse-errors.txt"
+results_watcher_logs="$ARTIFACT_DIR/results-watcher-logs.txt"
+results_watcher_json="$ARTIFACT_DIR/results-watcher-logs.json"
+results_watcher_error_logs="$ARTIFACT_DIR/results-watcher-logs-parse-errors.txt"
 results_api_db_sql="$ARTIFACT_DIR/tekton-results-postgres-pgdump.dump"
 INSTALL_RESULTS="${INSTALL_RESULTS:-false}"
 
@@ -169,12 +172,33 @@ if [ "$INSTALL_RESULTS" == "true" ]; then
     oc -n openshift-pipelines logs --tail=-1 -l app.kubernetes.io/name=tekton-results-api >> "$results_api_logs"
     oc -n tekton-pipelines logs --tail=-1 -l app.kubernetes.io/name=tekton-results-api >> "$results_api_logs"
 
-    # Parse and store JSON log lines 
+    # Parse and store JSON log lines
     echo "[" > "$results_api_json"
     grep -oP '\{.*?\}' "$results_api_logs" \
         | jq -e -c "$JQ_FIELDS_TO_EXTRACT" 2>"$results_api_error_logs" \
         | sed '$!s/$/,/' >> "$results_api_json"
     echo "]" >> "$results_api_json"
+
+    info "Collecting Results-Watcher log data"
+
+    # JSON fields from watcher log lines
+    JQ_WATCHER_FIELDS_TO_EXTRACT='{timestamp: .ts, level: .level, logger: .logger, caller: .caller, msg: .msg, namespace: .namespace, name: .name, error: .error, errorVerbose: .errorVerbose}'
+
+    # Fetch logs from results-watcher pods
+    oc -n openshift-pipelines logs --tail=-1 --all-containers=true --max-log-requests=10 -l app.kubernetes.io/name=tekton-results-watcher >> "$results_watcher_logs" || true
+    oc -n tekton-pipelines logs --tail=-1 --all-containers=true --max-log-requests=10 -l app.kubernetes.io/name=tekton-results-watcher >> "$results_watcher_logs" || true
+
+    # Parse and store JSON log lines
+    if [ -s "$results_watcher_logs" ]; then
+        echo "[" > "$results_watcher_json"
+        grep -oP '\{.*?\}' "$results_watcher_logs" \
+            | jq -e -c "$JQ_WATCHER_FIELDS_TO_EXTRACT" 2>"$results_watcher_error_logs" \
+            | sed '$!s/$/,/' >> "$results_watcher_json"
+        echo "]" >> "$results_watcher_json"
+        info "Results-Watcher logs collected successfully"
+    else
+        warning "No Results-Watcher logs found"
+    fi
 else
-    info "Skipping Results-API log data"
+    info "Skipping Results-API and Results-Watcher log data"
 fi

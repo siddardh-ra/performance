@@ -58,6 +58,11 @@ results_watcher_kube_api_burst="${DEPLOYMENT_RESULTS_WATCHER_KUBE_API_BURST:-}"
 results_watcher_threadiness="${DEPLOYMENT_RESULTS_WATCHER_THREADINESS:-}"
 results_watcher_disable_storing_incomplete_runs="${DEPLOYMENT_RESULTS_WATCHER_DISABLE_STORING_INCOMPLETE_RUNS:-}"
 
+# Results API performance tuning parameters
+results_api_kube_api_qps="${DEPLOYMENT_RESULTS_API_KUBE_API_QPS:-}"
+results_api_kube_api_burst="${DEPLOYMENT_RESULTS_API_KUBE_API_BURST:-}"
+results_api_disable_storing_incomplete_runs="${DEPLOYMENT_RESULTS_API_DISABLE_STORING_INCOMPLETE_RUNS:-}"
+
 OCP_VERSION="${OCP_VERSION:-$(oc get clusterversion version -o jsonpath='{.status.desired.version}'|cut -d. -f1,2)}"
 
 # Configure deployment version based on build type
@@ -734,6 +739,32 @@ EOF
         wait_for_entity_by_selector 300 $TEKTON_RESULTS_NS pod app.kubernetes.io/name=tekton-results-api
         wait_for_entity_by_selector 300 $TEKTON_RESULTS_NS pod app.kubernetes.io/name=tekton-results-watcher
 
+        # Configure Results API performance options
+        info "Configure Results API performance options"
+        if [ -n "$results_api_kube_api_qps" ] || [ -n "$results_api_kube_api_burst" ]; then
+            # Wait for ConfigMap to exist
+            wait_for_entity_by_selector 300 $TEKTON_RESULTS_NS configmap app.kubernetes.io/part-of=tekton-results
+
+            if [ -n "$results_api_kube_api_qps" ]; then
+                kubectl patch configmap tekton-results-api-config -n $TEKTON_RESULTS_NS --type merge -p "{\"data\":{\"K8S_QPS\":\"$results_api_kube_api_qps\"}}"
+            fi
+            if [ -n "$results_api_kube_api_burst" ]; then
+                kubectl patch configmap tekton-results-api-config -n $TEKTON_RESULTS_NS --type merge -p "{\"data\":{\"K8S_BURST\":\"$results_api_kube_api_burst\"}}"
+            fi
+
+            # Restart Results API pods to pick up new configuration
+            kubectl rollout restart deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api
+            kubectl rollout status deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api --timeout=300s
+        fi
+
+        if [ -n "$results_api_disable_storing_incomplete_runs" ]; then
+            kubectl patch configmap tekton-results-api-config -n $TEKTON_RESULTS_NS --type merge -p "{\"data\":{\"disableStoringIncompleteRuns\":\"$results_api_disable_storing_incomplete_runs\"}}"
+
+            # Restart Results API pods to pick up new configuration
+            kubectl rollout restart deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api
+            kubectl rollout status deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api --timeout=300s
+        fi
+
         # Setup route to access Results-API endpoint
         # TODO: Should test this with CI setup and also should evaluate how encryption works
         oc get route -n $TEKTON_RESULTS_NS tekton-results-api-service || oc create route -n $TEKTON_RESULTS_NS passthrough tekton-results-api-service --service=tekton-results-api-service --port=8080
@@ -775,6 +806,32 @@ EOF
         # Wait for tekton-results resources to start
         wait_for_entity_by_selector 300 $TEKTON_RESULTS_NS pod app.kubernetes.io/name=tekton-results-api
         wait_for_entity_by_selector 300 $TEKTON_RESULTS_NS pod app.kubernetes.io/name=tekton-results-watcher
+
+        # Configure Results API performance options
+        info "Configure Results API performance options"
+        if [ -n "$results_api_kube_api_qps" ] || [ -n "$results_api_kube_api_burst" ]; then
+            # Wait for ConfigMap to exist
+            wait_for_entity_by_selector 300 $TEKTON_RESULTS_NS configmap app.kubernetes.io/part-of=tekton-results
+
+            if [ -n "$results_api_kube_api_qps" ]; then
+                kubectl patch configmap tekton-results-api-config -n $TEKTON_RESULTS_NS --type merge -p "{\"data\":{\"K8S_QPS\":\"$results_api_kube_api_qps\"}}"
+            fi
+            if [ -n "$results_api_kube_api_burst" ]; then
+                kubectl patch configmap tekton-results-api-config -n $TEKTON_RESULTS_NS --type merge -p "{\"data\":{\"K8S_BURST\":\"$results_api_kube_api_burst\"}}"
+            fi
+
+            # Restart Results API pods to pick up new configuration
+            kubectl rollout restart deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api
+            kubectl rollout status deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api --timeout=300s
+        fi
+
+        if [ -n "$results_api_disable_storing_incomplete_runs" ]; then
+            kubectl patch configmap tekton-results-api-config -n $TEKTON_RESULTS_NS --type merge -p "{\"data\":{\"disableStoringIncompleteRuns\":\"$results_api_disable_storing_incomplete_runs\"}}"
+
+            # Restart Results API pods to pick up new configuration
+            kubectl rollout restart deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api
+            kubectl rollout status deployment -n $TEKTON_RESULTS_NS -l app.kubernetes.io/name=tekton-results-api --timeout=300s
+        fi
 
         # Setup route to access Results-API endpoint
         # TODO: Should test this with CI setup and also should evaluate how encryption works

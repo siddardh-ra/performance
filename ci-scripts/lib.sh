@@ -1,5 +1,21 @@
+# UTC ISO-8601 timestamp: GNU coreutils supports -Iseconds; BSD/macOS use strftime.
+function _date_iso_utc() {
+    local out
+    out=$(date -u -Iseconds 2>/dev/null) || true
+    if [ -n "$out" ]; then
+        echo "$out"
+    else
+        date -u +"%Y-%m-%dT%H:%M:%SZ"
+    fi
+}
+
+# Epoch seconds in UTC (POSIX: -u; avoids GNU-only --utc).
+function _date_epoch_utc() {
+    date -u +%s
+}
+
 function _log() {
-    echo "$( date -Ins --utc ) $1 $2" >&1
+    echo "$( _date_iso_utc ) $1 $2" >&1
 }
 
 function debug() {
@@ -67,10 +83,10 @@ function wait_for_entity_by_selector() {
     l="$4"
     expected="${5:-}"
 
-    before=$(date --utc +%s)
+    before=$(_date_epoch_utc)
 
     while ! entity_by_selector_exists "$ns" "$entity" "$l" "$expected"; do
-        now=$(date --utc +%s)
+        now=$(_date_epoch_utc)
         if [[ $(( now - before )) -ge "$timeout" ]]; then
             fatal "Required $entity did not appeared before timeout"
         fi
@@ -116,7 +132,8 @@ version_gte() {
 
     # TODO: Use package manager utility for version comparison
     # https://github.com/openshift-pipelines/performance/pull/64#discussion_r2041881415
-    printf '%s\n%s\n' "$2" "$1" | sort --check=quiet --version-sort
+    # -Vc works on GNU and BSD sort; long options are GNU-only.
+    printf '%s\n%s\n' "$2" "$1" | sort -Vc
 }
 
 capture_nightly_build_info() {
