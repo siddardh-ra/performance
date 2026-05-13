@@ -38,6 +38,7 @@ pruner_stop
 if [ -n "${TOTAL_TIMEOUT:-}" ]; then
     # Time-based mode: run for TOTAL_TIMEOUT duration
     info "Running in time-based mode: TOTAL_TIMEOUT=${TOTAL_TIMEOUT}s (TEST_TOTAL=${TEST_TOTAL} ignored)"
+    TEST_TOTAL=1000000
     export TEST_PARAMS="--wait-for-duration=${TOTAL_TIMEOUT}"
 else
     # Count-based mode: run for TEST_TOTAL PipelineRuns
