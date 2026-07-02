@@ -1,0 +1,26 @@
+# Python dependencies for OpenTelemetry Validation Framework
+# Install with: pip install -r requirements-otel.txt
+
+# setuptools provides pkg_resources (required by benchmark.py)
+# Pin <81: setuptools 82+ removed pkg_resources on Python 3.13
+setuptools>=65.0.0,<81
+
+# Kubernetes API client (required for benchmark.py)
+kubernetes>=28.1.0
+
+# YAML parsing (required for benchmark.py and tools)
+PyYAML>=6.0.1
+
+# HTTP requests (required for Prometheus queries)
+requests>=2.31.0
+
+# JSON processing (usually built-in, but explicit for clarity)
+# Built-in: json
+
+# Date/time handling (usually built-in)
+# Built-in: datetime
+
+# Command-line argument parsing (usually built-in)
+# Built-in: argparse
+
+# Note: jq must be installed separately (brew install jq or apt-get install jq)

@@ -1,0 +1,179 @@
+{
+  "_comment": "Chains OpenTelemetry metrics reference for validation",
+  "_source_pr": "https://github.com/tektoncd/chains/pull/1735",
+  "_validation_date": "2026-07-01",
+  "_note": "Metrics from Chains OTEL migration - signing counters + workqueue + runtime",
+
+  "chains_signing": {
+    "description": "Tekton Chains signing metrics",
+    "namespace": "openshift-pipelines",
+    "component": "tekton-chains-controller",
+    "metrics": [
+      {
+        "name": "sign_created",
+        "type": "counter",
+        "description": "Number of sign operations created",
+        "labels": ["kind"],
+        "suffixes": []
+      },
+      {
+        "name": "payload_stored",
+        "type": "counter",
+        "description": "Number of payloads stored",
+        "labels": ["kind"],
+        "suffixes": []
+      },
+      {
+        "name": "marked_signed",
+        "type": "counter",
+        "description": "Number of resources marked as signed",
+        "labels": ["kind"],
+        "suffixes": []
+      }
+    ]
+  },
+
+  "workqueue": {
+    "description": "Workqueue metrics (renamed from tekton_chains_controller_workqueue_* to kn_workqueue_*)",
+    "namespace": "openshift-pipelines",
+    "component": "tekton-chains-controller",
+    "metrics": [
+      {
+        "name": "kn_workqueue_adds_total",
+        "type": "counter",
+        "description": "Total number of adds handled by workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "kn_workqueue_depth",
+        "type": "gauge",
+        "description": "Current depth of workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "kn_workqueue_process_duration_seconds",
+        "type": "histogram",
+        "description": "How long in seconds processing an item took",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "kn_workqueue_queue_duration_seconds",
+        "type": "histogram",
+        "description": "How long in seconds an item stays in workqueue before being requested",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "kn_workqueue_retries_total",
+        "type": "counter",
+        "description": "Total number of retries handled by workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "kn_workqueue_unfinished_work_seconds",
+        "type": "gauge",
+        "description": "How long in seconds the outstanding workqueue items have been in flight",
+        "labels": ["name"],
+        "suffixes": []
+      }
+    ]
+  },
+
+  "runtime": {
+    "description": "Go runtime and process metrics",
+    "namespace": "openshift-pipelines",
+    "component": "tekton-chains-controller",
+    "metrics": [
+      {
+        "name": "process_cpu_seconds_total",
+        "type": "counter",
+        "description": "Total user and system CPU time spent in seconds",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_resident_memory_bytes",
+        "type": "gauge",
+        "description": "Resident memory size in bytes",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_virtual_memory_bytes",
+        "type": "gauge",
+        "description": "Virtual memory size in bytes",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_open_fds",
+        "type": "gauge",
+        "description": "Number of open file descriptors",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_max_fds",
+        "type": "gauge",
+        "description": "Maximum number of open file descriptors",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_goroutines",
+        "type": "gauge",
+        "description": "Number of goroutines that currently exist",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_threads",
+        "type": "gauge",
+        "description": "Number of OS threads created",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_gc_duration_seconds",
+        "type": "summary",
+        "description": "A summary of GC invocation durations",
+        "labels": [],
+        "suffixes": ["_sum", "_count"]
+      },
+      {
+        "name": "go_memstats_alloc_bytes",
+        "type": "gauge",
+        "description": "Number of bytes allocated and still in use",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_memstats_heap_alloc_bytes",
+        "type": "gauge",
+        "description": "Number of heap bytes allocated and still in use",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_memstats_heap_inuse_bytes",
+        "type": "gauge",
+        "description": "Number of heap bytes that are in use",
+        "labels": [],
+        "suffixes": []
+      }
+    ]
+  },
+
+  "removed_metrics": {
+    "description": "Metrics that should NOT exist (removed from OpenCensus)",
+    "metrics": [
+      "tekton_chains_taskrun_signed_total",
+      "tekton_chains_pipelinerun_signed_total"
+    ],
+    "note": "Per PR reviewer: these metrics never existed in Chains, but test checks they're absent"
+  }
+}

@@ -1,0 +1,400 @@
+{
+  "_comment": "OpenTelemetry metrics reference for OpenShift Pipelines v1.23.0 validation",
+  "_migration_epic": "SRVKP-7899",
+  "_validation_date": "2026-06-30",
+  "_note": "This file contains all expected OpenTelemetry metrics after migration from OpenCensus",
+
+  "pipelines_controller": {
+    "description": "Tekton Pipelines Controller metrics",
+    "namespace": "openshift-pipelines",
+    "component": "tekton-pipelines-controller",
+    "metrics": [
+      {
+        "name": "tekton_pipelines_controller_pipelinerun_duration_seconds",
+        "type": "histogram",
+        "description": "Duration of PipelineRun execution in seconds",
+        "labels": ["pipeline", "pipelinerun", "namespace", "status"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_pipelines_controller_pipelinerun_count",
+        "type": "counter",
+        "description": "Total count of PipelineRuns",
+        "labels": ["status", "namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_running_pipelineruns_count",
+        "type": "gauge",
+        "description": "Number of PipelineRuns currently running",
+        "labels": ["namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_taskrun_duration_seconds",
+        "type": "histogram",
+        "description": "Duration of TaskRun execution in seconds",
+        "labels": ["task", "taskrun", "namespace", "status"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_pipelines_controller_taskrun_count",
+        "type": "counter",
+        "description": "Total count of TaskRuns",
+        "labels": ["status", "namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_running_taskruns_count",
+        "type": "gauge",
+        "description": "Number of TaskRuns currently running",
+        "labels": ["namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_running_taskruns_throttled_by_quota_count",
+        "type": "gauge",
+        "description": "Number of TaskRuns throttled by quota",
+        "labels": ["namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_running_taskruns_throttled_by_node_count",
+        "type": "gauge",
+        "description": "Number of TaskRuns throttled by node constraints",
+        "labels": ["namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_taskruns_pod_latency_milliseconds",
+        "type": "gauge",
+        "description": "Latency between TaskRun creation and Pod scheduling in milliseconds",
+        "labels": ["namespace", "pod", "task"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_depth",
+        "type": "gauge",
+        "description": "Current depth of the controller workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_adds_total",
+        "type": "counter",
+        "description": "Total number of items added to workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_latency_seconds",
+        "type": "histogram",
+        "description": "Time items spend waiting in workqueue before being processed",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_work_duration_seconds",
+        "type": "histogram",
+        "description": "Time taken to process items from workqueue",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_unfinished_work_seconds",
+        "type": "gauge",
+        "description": "Time since oldest unfinished item was added to workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_longest_running_processor_seconds",
+        "type": "gauge",
+        "description": "Duration of longest running workqueue processor",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_workqueue_retries_total",
+        "type": "counter",
+        "description": "Total number of retries for workqueue items",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_client_latency_seconds",
+        "type": "histogram",
+        "description": "Kubernetes API client request latency",
+        "labels": ["verb", "group", "version", "resource"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_pipelines_controller_cloudevent_count",
+        "type": "counter",
+        "description": "Total cloud events sent",
+        "labels": ["name", "type"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_cloudevent_sent_count",
+        "type": "counter",
+        "description": "Cloud events successfully sent",
+        "labels": ["name", "type"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_reconcile_count",
+        "type": "counter",
+        "description": "Total reconciliation attempts",
+        "labels": ["key", "success"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_pipelines_controller_reconcile_latency_seconds",
+        "type": "histogram",
+        "description": "Time taken for reconciliation",
+        "labels": ["key"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      }
+    ]
+  },
+
+  "chains_controller": {
+    "description": "Tekton Chains Controller metrics",
+    "namespace": "openshift-pipelines",
+    "component": "tekton-chains-controller",
+    "metrics": [
+      {
+        "name": "tekton_chains_controller_taskrun_signed_total",
+        "type": "counter",
+        "description": "Total TaskRuns signed by Chains",
+        "labels": ["namespace", "status"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_chains_controller_pipelinerun_signed_total",
+        "type": "counter",
+        "description": "Total PipelineRuns signed by Chains",
+        "labels": ["namespace", "status"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_chains_controller_signing_duration_seconds",
+        "type": "histogram",
+        "description": "Duration of signing operation in seconds",
+        "labels": ["kind", "namespace"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_chains_controller_workqueue_depth",
+        "type": "gauge",
+        "description": "Current depth of Chains controller workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_chains_controller_workqueue_adds_total",
+        "type": "counter",
+        "description": "Total number of items added to Chains workqueue",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_chains_controller_workqueue_latency_seconds",
+        "type": "histogram",
+        "description": "Chains workqueue latency",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_chains_controller_workqueue_work_duration_seconds",
+        "type": "histogram",
+        "description": "Chains workqueue processing duration",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_chains_controller_workqueue_retries_total",
+        "type": "counter",
+        "description": "Chains workqueue retries",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_chains_controller_client_latency_seconds",
+        "type": "histogram",
+        "description": "Chains Kubernetes API client latency",
+        "labels": ["verb", "group", "version", "resource"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      }
+    ]
+  },
+
+  "tekton_results": {
+    "description": "Tekton Results API and Watcher metrics",
+    "namespace": "openshift-pipelines",
+    "components": ["tekton-results-api", "tekton-results-watcher"],
+    "metrics": [
+      {
+        "name": "tekton_results_api_request_duration_seconds",
+        "type": "histogram",
+        "description": "API request duration in seconds",
+        "labels": ["method", "endpoint", "status_code"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_results_api_request_count",
+        "type": "counter",
+        "description": "Total API requests",
+        "labels": ["method", "endpoint", "status_code"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_results_watcher_pipelinerun_count",
+        "type": "counter",
+        "description": "PipelineRuns processed by Results watcher",
+        "labels": ["namespace", "status"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_results_watcher_taskrun_count",
+        "type": "counter",
+        "description": "TaskRuns processed by Results watcher",
+        "labels": ["namespace", "status"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_results_watcher_record_count",
+        "type": "counter",
+        "description": "Records created by Results watcher",
+        "labels": ["type", "namespace"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_results_watcher_workqueue_depth",
+        "type": "gauge",
+        "description": "Results watcher workqueue depth",
+        "labels": ["name"],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_results_watcher_workqueue_latency_seconds",
+        "type": "histogram",
+        "description": "Results watcher workqueue latency",
+        "labels": ["name"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_results_watcher_client_latency_seconds",
+        "type": "histogram",
+        "description": "Results watcher Kubernetes API client latency",
+        "labels": ["verb", "group", "version", "resource"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_results_db_query_duration_seconds",
+        "type": "histogram",
+        "description": "Database query duration",
+        "labels": ["operation", "table"],
+        "suffixes": ["_bucket", "_sum", "_count"]
+      },
+      {
+        "name": "tekton_results_db_connection_pool_size",
+        "type": "gauge",
+        "description": "Database connection pool size",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "tekton_results_db_connection_pool_in_use",
+        "type": "gauge",
+        "description": "Database connections currently in use",
+        "labels": [],
+        "suffixes": []
+      }
+    ]
+  },
+
+  "common_runtime_metrics": {
+    "description": "Standard Go runtime and process metrics exported by all components",
+    "metrics": [
+      {
+        "name": "process_cpu_seconds_total",
+        "type": "counter",
+        "description": "Total CPU time consumed by the process",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_resident_memory_bytes",
+        "type": "gauge",
+        "description": "Resident memory size in bytes",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_virtual_memory_bytes",
+        "type": "gauge",
+        "description": "Virtual memory size in bytes",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_open_fds",
+        "type": "gauge",
+        "description": "Number of open file descriptors",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "process_max_fds",
+        "type": "gauge",
+        "description": "Maximum number of open file descriptors",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_goroutines",
+        "type": "gauge",
+        "description": "Number of goroutines",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_threads",
+        "type": "gauge",
+        "description": "Number of OS threads",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_gc_duration_seconds",
+        "type": "summary",
+        "description": "GC invocation duration",
+        "labels": [],
+        "suffixes": ["_sum", "_count"]
+      },
+      {
+        "name": "go_memstats_alloc_bytes",
+        "type": "gauge",
+        "description": "Bytes allocated and still in use",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_memstats_heap_alloc_bytes",
+        "type": "gauge",
+        "description": "Heap bytes allocated and still in use",
+        "labels": [],
+        "suffixes": []
+      },
+      {
+        "name": "go_memstats_heap_inuse_bytes",
+        "type": "gauge",
+        "description": "Heap bytes in use",
+        "labels": [],
+        "suffixes": []
+      }
+    ]
+  }
+}
