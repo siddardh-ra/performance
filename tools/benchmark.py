@@ -12,6 +12,7 @@ import logging
 import logging.handlers
 import os
 import queue
+import signal
 import pkg_resources
 import requests
 import sys
@@ -753,6 +754,105 @@ def counter_thread(args, pipelineruns, pipelineruns_lock, taskruns, taskruns_loc
             time.sleep(args.delay)
 
 
+def summarize_runs(runs):
+    """Compute a quick state/outcome breakdown for a dict of run records."""
+    summary = {
+        "created": len(runs),
+        "finished": 0,
+        "running": 0,
+        "pending": 0,
+        "succeeded": 0,
+        "failed": 0,
+    }
+    for rec in runs.values():
+        state = rec.get("state")
+        if state in ("finished", "running", "pending"):
+            summary[state] += 1
+        outcome = rec.get("outcome")
+        if outcome in ("succeeded", "failed"):
+            summary[outcome] += 1
+    return summary
+
+
+def _safe_snapshot(runs):
+    """Best-effort copy of a run dict that may be mutated by watcher threads."""
+    try:
+        return dict(runs)
+    except RuntimeError:
+        return {k: v for k, v in list(runs.items())}
+
+
+def dump_results(
+    args, pipelineruns, pipelineruns_lock, taskruns, taskruns_lock, reason="completed"
+):
+    """Write benchmark output and log a processed-count summary.
+
+    Safe to call both on normal completion and from a termination signal
+    handler, so partial progress (how many PipelineRuns were processed before a
+    timeout/termination) is always captured in the logs and artifacts.
+    """
+    # Acquire locks with a timeout so a stuck watcher thread can never prevent
+    # us from emitting at least a best-effort summary before the process dies.
+    got_pr = pipelineruns_lock.acquire(timeout=10)
+    got_tr = taskruns_lock.acquire(timeout=10)
+    try:
+        pr_snapshot = _safe_snapshot(pipelineruns)
+        tr_snapshot = _safe_snapshot(taskruns)
+    finally:
+        if got_tr:
+            taskruns_lock.release()
+        if got_pr:
+            pipelineruns_lock.release()
+
+    pr_summary = summarize_runs(pr_snapshot)
+    tr_summary = summarize_runs(tr_snapshot)
+
+    logging.info(
+        "PROCESSED SUMMARY (%s): PipelineRuns created=%d finished=%d succeeded=%d "
+        "failed=%d running=%d pending=%d | TaskRuns created=%d finished=%d",
+        reason,
+        pr_summary["created"],
+        pr_summary["finished"],
+        pr_summary["succeeded"],
+        pr_summary["failed"],
+        pr_summary["running"],
+        pr_summary["pending"],
+        tr_summary["created"],
+        tr_summary["finished"],
+    )
+
+    data = {"pipelineruns": pr_snapshot, "taskruns": tr_snapshot}
+
+    # Always write the configured output file (in CWD); also mirror into
+    # ARTIFACT_DIR when running under Prow so results survive a killed step
+    # even if the downstream collect/stats steps never get to run.
+    output_targets = [args.output_file]
+    artifact_dir = os.environ.get("ARTIFACT_DIR")
+    if artifact_dir:
+        output_targets.append(
+            os.path.join(artifact_dir, os.path.basename(args.output_file))
+        )
+        summary_path = os.path.join(artifact_dir, "benchmark-summary.json")
+    else:
+        summary_path = "benchmark-summary.json"
+
+    for path in output_targets:
+        try:
+            with open(path, "w") as fd:
+                json.dump(data, fd, cls=DateTimeEncoder)
+        except OSError as e:
+            logging.warning(f"Could not write results to {path}: {e}")
+
+    try:
+        with open(summary_path, "w") as fd:
+            json.dump(
+                {"reason": reason, "pipelineruns": pr_summary, "taskruns": tr_summary},
+                fd,
+            )
+    except OSError as e:
+        logging.warning(f"Could not write summary to {summary_path}: {e}")
+
+
 def doit(args):
     stop_event = threading.Event()
 
@@ -793,6 +893,34 @@ def doit(args):
     counter_future.name = "counter_thread"
     counter_future.start()
 
+    # On SIGTERM/SIGINT (e.g. Prow job timeout) dump whatever has been processed
+    # so far instead of losing all progress. os._exit guarantees we terminate
+    # within the grace period even though watcher/counter threads are alive.
+    terminating = threading.Event()
+
+    def _termination_handler(signum, _frame):
+        if terminating.is_set():
+            return
+        terminating.set()
+        name = signal.Signals(signum).name
+        logging.warning(
+            f"Received {name}; dumping partial results before exit"
+        )
+        try:
+            dump_results(
+                args,
+                pipelineruns,
+                pipelineruns_lock,
+                taskruns,
+                taskruns_lock,
+                reason=f"signal:{name}",
+            )
+        finally:
+            os._exit(0)
+
+    signal.signal(signal.SIGTERM, _termination_handler)
+    signal.signal(signal.SIGINT, _termination_handler)
+
     try:
         counter_future.join()
     except:
@@ -805,12 +933,14 @@ def doit(args):
     pipelineruns_future.join()
     taskruns_future.join()
 
-    with open(args.output_file, "w") as fd:
-        json.dump(
-            {"pipelineruns": pipelineruns, "taskruns": taskruns},
-            fd,
-            cls=DateTimeEncoder,
-        )
+    dump_results(
+        args,
+        pipelineruns,
+        pipelineruns_lock,
+        taskruns,
+        taskruns_lock,
+        reason="completed",
+    )
 
 
 def main():

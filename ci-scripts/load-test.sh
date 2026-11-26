@@ -65,8 +65,24 @@ if [ -e "$TEST_CONCURRENCY_PATH" ]; then
     info "Changed the TEST_CONCURRENT to ${TEST_CONCURRENCY_PATH}"
 fi
 
-# shellcheck disable=SC2086  # TEST_PARAMS intentionally unquoted for word splitting
-time ../../tools/benchmark.py --insecure --namespace "${TEST_NAMESPACE}" --total "${TEST_TOTAL}" --concurrent "${TEST_CONCURRENT}" --run "${TEST_RUN}" --stats-file benchmark-stats.csv --output-file benchmark-output.json --verbose ${TEST_PARAMS}
+# Run benchmark.py in the background and forward termination signals to it, so
+# that on a Prow job timeout (SIGINT/SIGTERM) it can dump the partial results
+# and processed-PipelineRun count instead of being killed with no output.
+run_benchmark() {
+    # shellcheck disable=SC2086  # TEST_PARAMS intentionally unquoted for word splitting
+    ../../tools/benchmark.py --insecure --namespace "${TEST_NAMESPACE}" --total "${TEST_TOTAL}" --concurrent "${TEST_CONCURRENT}" --run "${TEST_RUN}" --stats-file benchmark-stats.csv --output-file benchmark-output.json --verbose ${TEST_PARAMS} &
+    local bench_pid=$!
+    # On signal, forward it to benchmark.py and keep waiting for it to exit
+    # cleanly (it installs its own handler to dump partial results).
+    trap 'info "Forwarding termination signal to benchmark.py (pid '"$bench_pid"')"; kill -TERM "'"$bench_pid"'" 2>/dev/null || true' TERM INT
+    # wait returns >128 when interrupted by a trapped signal; loop until the
+    # process has actually exited so benchmark.py can finish its dump.
+    while ! wait "$bench_pid"; do
+        kill -0 "$bench_pid" 2>/dev/null || break
+    done
+    trap - TERM INT
+}
+time run_benchmark
 after=$(date -Ins --utc)
 
 # Capture test stats
