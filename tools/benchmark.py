@@ -744,6 +744,21 @@ def counter_thread(args, pipelineruns, pipelineruns_lock, taskruns, taskruns_loc
                 logging.info("--wait-for-duration timeout reached, we are done.")
                 return
 
+            # Stop gracefully once the self-imposed max duration is reached, so
+            # partial results are still collected when the full --total count
+            # cannot finish within the job's time budget. Unlike
+            # --wait-for-duration this does not change --total, so whichever
+            # limit (count or time) is hit first ends the run.
+            if (
+                args.max_duration is not None
+                and (now() - monitoring_start).total_seconds() >= args.max_duration
+            ):
+                logging.info(
+                    "--max-duration (%ss) reached; stopping with partial results.",
+                    args.max_duration,
+                )
+                return
+
             # If --wait-for-state count reached across all namespaces, then exit
             if len(namespace_wait_for_state_completed) == args.namespace:
                 logging.info(
@@ -987,6 +1002,15 @@ def main():
         "--wait-for-duration",
         help="Terminate this benchmark script after given duration (seconds).\
             This flag overrides --total flag and sets a large value to avoid early exit.",
+        default=None,
+        type=int,
+    )
+    parser.add_argument(
+        "--max-duration",
+        help="Stop gracefully after this many seconds even if --total has not "
+        "been reached, collecting partial results. Unlike --wait-for-duration "
+        "this does NOT change --total, so whichever limit (count or time) is hit "
+        "first ends the run.",
         default=None,
         type=int,
     )

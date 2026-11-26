@@ -70,7 +70,7 @@ fi
 # and processed-PipelineRun count instead of being killed with no output.
 run_benchmark() {
     # shellcheck disable=SC2086  # TEST_PARAMS intentionally unquoted for word splitting
-    ../../tools/benchmark.py --insecure --namespace "${TEST_NAMESPACE}" --total "${TEST_TOTAL}" --concurrent "${TEST_CONCURRENT}" --run "${TEST_RUN}" --stats-file benchmark-stats.csv --output-file benchmark-output.json --verbose ${TEST_PARAMS} &
+    ../../tools/benchmark.py --insecure --namespace "${TEST_NAMESPACE}" --total "${TEST_TOTAL}" --concurrent "${TEST_CONCURRENT}" --run "${TEST_RUN}" --max-duration "${TEST_TIMEOUT}" --stats-file benchmark-stats.csv --output-file benchmark-output.json --verbose ${TEST_PARAMS} &
     local bench_pid=$!
     # On signal, forward it to benchmark.py and keep waiting for it to exit
     # cleanly (it installs its own handler to dump partial results).
